@@ -1,0 +1,17 @@
+html,body { height:100%; margin:0; font-family:Segoe UI, Roboto, Arial; background:#111; color:#eee; }
+#ui { position:fixed; left:12px; top:12px; z-index:10; }
+#hud { margin:6px 0 0 0; font-weight:600; }
+.controls { opacity:0.9; font-size:13px; margin-top:6px }
+canvas { display:block; width:100vw; height:100vh; }
+/* simple responsive scaling */
+
+/* Main menu styles (full-screen replacement) */
+.menu { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:linear-gradient(180deg, rgba(0,0,0,0.65), rgba(0,0,0,0.75)); z-index:80; }
+.menu-card { background:linear-gradient(180deg,#1a1f2a,#0f1318); color:#fff; padding:22px; border-radius:10px; width:380px; text-align:center; box-shadow:0 12px 36px rgba(0,0,0,0.6); }
+.menu-card h2{ margin:0 0 8px 0; font-size:22px }
+.muted{ color:#bfc7d1; font-size:14px }
+.menu-actions{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:12px }
+.menu-btn{ background:#2b7cff; color:#fff; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; font-weight:600 }
+.menu-btn.secondary{ background:#6c757d }
+.menu-msg{ margin-top:10px; font-size:13px; color:#cdd }
+.menu.hidden{ display:none }

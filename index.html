@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Shapes & Shields — Demo</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="ui">
+    <h1>Shapes & Shields — Demo</h1>
+    <p id="hud"></p>
+    <p class="controls">
+      Controls: Move = WASD / Arrow keys · Toggle Shield = Space · Restart = R
+    </p>
+  </div>
+  <!-- Main Menu (separate screen) -->
+  <div id="mainMenu" class="menu">
+    <div class="menu-card">
+      <h2>Shapes & Shields</h2>
+      <p class="muted">A minimal demo: triangle player, hold Space to enable shield.</p>
+      <div class="menu-actions">
+        <button id="btnStart" class="menu-btn">Start</button>
+        <button id="btnInstructions" class="menu-btn secondary">Instructions</button>
+        <button id="btnFullscreen" class="menu-btn">Fullscreen</button>
+        <button id="btnSound" class="menu-btn">Sound: On</button>
+      </div>
+      <div id="menuMsg" class="menu-msg"></div>
+    </div>
+  </div>
+
+  <canvas id="game"></canvas>
+  <script src="main.js"></script>
+</body>
+</html>

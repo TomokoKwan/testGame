@@ -1,0 +1,202 @@
+// Simple shapes-and-shields demo
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let W, H;
+function resize() { W = canvas.width = innerWidth; H = canvas.height = innerHeight; }
+addEventListener('resize', resize); resize();
+
+// Player (triangle) represented by position and radius for collisions
+const player = {
+  x: W/2, y: H/2, r: 20,
+  speed: 260, // px / s
+  shield: false,
+  hp: 3
+};
+
+let keys = {};
+addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if(e.code==='Space') e.preventDefault(); });
+addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+// Enemies are circles that occasionally shoot at player
+let enemies = [];
+let projectiles = [];
+let lastTime = performance.now();
+let spawnTimer = 0; let spawnInterval = 2.0; // seconds
+let score = 0;
+
+function rand(min,max){ return Math.random()*(max-min)+min }
+
+function spawnEnemy(){
+  // spawn at random edge
+  const edge = Math.floor(Math.random()*4);
+  let x,y;
+  if(edge===0){ x = -30; y = rand(0,H); }
+  if(edge===1){ x = W+30; y = rand(0,H); }
+  if(edge===2){ x = rand(0,W); y = -30; }
+  if(edge===3){ x = rand(0,W); y = H+30; }
+  enemies.push({ x,y, r: rand(12,28), shootTimer: rand(0.3,1.5) });
+}
+
+function spawnProjectile(from, vx, vy){
+  projectiles.push({ x: from.x, y: from.y, r:6, vx, vy });
+}
+
+function update(dt){
+  // player movement
+  let dx=0, dy=0;
+  if(keys['arrowup']||keys['w']) dy -= 1;
+  if(keys['arrowdown']||keys['s']) dy += 1;
+  if(keys['arrowleft']||keys['a']) dx -= 1;
+  if(keys['arrowright']||keys['d']) dx += 1;
+  const len = Math.hypot(dx,dy) || 1;
+  player.x += (dx/len) * player.speed * dt;
+  player.y += (dy/len) * player.speed * dt;
+  player.x = Math.max(0, Math.min(W, player.x));
+  player.y = Math.max(0, Math.min(H, player.y));
+
+  // shield toggle (Space)
+  if(keys[' ']){ player.shield = true; } else { player.shield = false; }
+
+  // enemies
+  spawnTimer += dt;
+  if(spawnTimer >= spawnInterval){ spawnTimer = 0; spawnEnemy(); if(spawnInterval>0.7) spawnInterval *= 0.985; }
+
+  enemies.forEach((e, i) => {
+    // simple homing move
+    const ax = player.x - e.x; const ay = player.y - e.y; const d = Math.hypot(ax,ay)||1;
+    e.x += (ax/d) * (60 + 20*Math.random()) * dt;
+    e.y += (ay/d) * (60 + 20*Math.random()) * dt;
+    e.shootTimer -= dt;
+    if(e.shootTimer <= 0){
+      e.shootTimer = rand(0.6,1.6);
+      // shoot towards player
+      const vx = (player.x - e.x) / Math.hypot(player.x-e.x, player.y-e.y) * rand(160, 260);
+      const vy = (player.y - e.y) / Math.hypot(player.x-e.x, player.y-e.y) * rand(160, 260);
+      spawnProjectile(e, vx, vy);
+    }
+  });
+
+  // projectiles
+  for(let i=projectiles.length-1;i>=0;i--){
+    const p = projectiles[i];
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    // remove offscreen
+    if(p.x < -50 || p.x > W+50 || p.y < -50 || p.y > H+50){ projectiles.splice(i,1); continue; }
+    // collision with shield
+    if(player.shield){
+      const dx = p.x - player.x; const dy = p.y - player.y; const d = Math.hypot(dx,dy);
+      const shieldRadius = player.r*2.2;
+      if(d <= shieldRadius + p.r){ projectiles.splice(i,1); score += 1; continue; }
+    }
+    // collision with player (approximate triangle as circle)
+    const dx2 = p.x - player.x; const dy2 = p.y - player.y; const d2 = Math.hypot(dx2,dy2);
+    if(d2 <= player.r + p.r){ projectiles.splice(i,1); player.hp -= 1; if(player.hp <= 0) gameOver(); continue; }
+  }
+}
+
+let running = true;
+function gameOver(){ running = false; }
+
+function draw(){
+  // background
+  ctx.fillStyle = '#0b0b0d'; ctx.fillRect(0,0,W,H);
+
+  // draw enemies
+  enemies.forEach(e=>{
+    ctx.beginPath(); ctx.fillStyle = '#d9534f'; ctx.arc(e.x,e.y,e.r,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#7b1f1a'; ctx.lineWidth = 2; ctx.stroke();
+  });
+
+  // draw projectiles
+  projectiles.forEach(p=>{
+    ctx.beginPath(); ctx.fillStyle = '#ffd54f'; ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+  });
+
+  // draw shield if active
+  if(player.shield){ ctx.beginPath(); ctx.strokeStyle = 'rgba(80,200,255,0.9)'; ctx.lineWidth = 4; ctx.arc(player.x, player.y, player.r*2.2, 0, Math.PI*2); ctx.stroke(); }
+
+  // draw player (triangle oriented toward mouse?) simple static triangle
+  ctx.save(); ctx.translate(player.x, player.y);
+  ctx.fillStyle = '#5cb85c'; ctx.strokeStyle = '#2f6f2f'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, -player.r); ctx.lineTo(player.r, player.r); ctx.lineTo(-player.r, player.r); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.restore();
+
+  // HUD
+  const hud = document.getElementById('hud'); hud.textContent = `HP: ${player.hp} · Score: ${score} · Enemies: ${enemies.length}`;
+
+  if(!running){
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#fff'; ctx.textAlign='center'; ctx.font = '36px Segoe UI, Arial'; ctx.fillText('Game Over', W/2, H/2 - 20);
+    ctx.font = '18px Segoe UI, Arial'; ctx.fillText(`Score: ${score} · Press R to restart`, W/2, H/2 + 14);
+  }
+}
+
+function loop(now){
+  const dt = Math.min(0.05, (now - lastTime)/1000);
+  lastTime = now;
+  if(running) update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+addEventListener('keydown', e => {
+  if(e.key.toLowerCase()==='r') restart();
+});
+
+function restart(){ enemies = []; projectiles = []; player.x = W/2; player.y = H/2; player.hp = 3; score = 0; spawnInterval = 2.0; spawnTimer = 0; running = true; }
+
+// simple mouse follow for fun (not required)
+addEventListener('mousemove', e => {
+  if(!running) return; // don't move player when game is paused or over
+  // small smoothing movement toward mouse
+  const mx = e.clientX, my = e.clientY;
+  player.x += (mx - player.x) * 0.03;
+  player.y += (my - player.y) * 0.03;
+});
+
+// touch support: tap to toggle shield (ignored when not running)
+addEventListener('touchstart', e => { if(!running) return; player.shield = true; });
+addEventListener('touchend', e => { if(!running) return; player.shield = false; });
+
+// --- Main menu wiring (separate screen) ---
+const mainMenu = document.getElementById('mainMenu');
+const btnStart = document.getElementById('btnStart');
+const btnInstructions = document.getElementById('btnInstructions');
+const btnFullscreen = document.getElementById('btnFullscreen');
+const btnSound = document.getElementById('btnSound');
+const menuMsg = document.getElementById('menuMsg');
+const ui = document.getElementById('ui');
+
+let soundOn = true;
+
+function showMainMenu(msg){
+  if(msg) menuMsg.textContent = msg;
+  if(mainMenu) mainMenu.classList.remove('hidden');
+  if(canvas) canvas.style.display = 'none';
+  if(ui) ui.style.display = 'none';
+  running = false;
+}
+
+function hideMainMenu(){
+  if(mainMenu) mainMenu.classList.add('hidden');
+  if(menuMsg) menuMsg.textContent = '';
+  if(canvas) canvas.style.display = '';
+  if(ui) ui.style.display = '';
+  running = true;
+  lastTime = performance.now();
+  requestAnimationFrame(loop);
+}
+
+btnStart && btnStart.addEventListener('click', ()=>{ hideMainMenu(); restart(); });
+btnInstructions && btnInstructions.addEventListener('click', ()=>{ showMainMenu('Move with WASD or arrows. Hold Space to shield. Restart with R.'); });
+btnFullscreen && btnFullscreen.addEventListener('click', async ()=>{
+  try{
+    if(!document.fullscreenElement) await document.documentElement.requestFullscreen();
+    else await document.exitFullscreen();
+  }catch(e){ /* ignore */ }
+});
+btnSound && btnSound.addEventListener('click', ()=>{ soundOn = !soundOn; btnSound.textContent = `Sound: ${soundOn? 'On':'Off'}`; });
+
+// Show menu at load so it replaces the game screen until Start is pressed
+showMainMenu();
