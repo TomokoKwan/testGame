@@ -24,6 +24,49 @@ let lastTime = performance.now();
 let spawnTimer = 0; let spawnInterval = 2.0; // seconds
 let score = 0;
 
+// Particles
+let particles = [];
+function spawnParticles(x,y,color,count=12){
+  for(let i=0;i<count;i++){
+    const ang = Math.random()*Math.PI*2;
+    const speed = Math.random()*260 + 60;
+    particles.push({ x, y, vx: Math.cos(ang)*speed, vy: Math.sin(ang)*speed, r: Math.random()*3+1, life: Math.random()*0.7+0.4, color });
+    if(particles.length>800) particles.shift();
+  }
+}
+
+function updateParticles(dt){
+  for(let i=particles.length-1;i>=0;i--){
+    const p = particles[i];
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.vy += 300 * dt; // gravity
+    p.life -= dt;
+    p.r *= 0.96;
+    if(p.life <= 0 || p.r < 0.2) particles.splice(i,1);
+  }
+}
+
+function drawParticles(){
+  for(const p of particles){
+    ctx.beginPath(); ctx.fillStyle = p.color; ctx.globalAlpha = Math.max(0, p.life/1.2);
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
+  }
+}
+
+// Simple WebAudio helpers (oscillator + envelope)
+let audioCtx = null; let masterGain = null;
+function ensureAudio(){ if(audioCtx) return; audioCtx = new (window.AudioContext||window.webkitAudioContext)(); masterGain = audioCtx.createGain(); masterGain.gain.value = 0.12; masterGain.connect(audioCtx.destination); }
+function playBeep(freq, type='sine', duration=0.08, vol=1.0){
+  if(!soundOn) return; try{ ensureAudio(); const o = audioCtx.createOscillator(); const g = audioCtx.createGain(); o.type = type; o.frequency.value = freq; g.gain.value = vol; o.connect(g); g.connect(masterGain); const now = audioCtx.currentTime; g.gain.setValueAtTime(vol, now); g.gain.exponentialRampToValueAtTime(0.001, now + duration); o.start(now); o.stop(now + duration + 0.02);
+  }catch(e){}
+}
+function playNoise(duration=0.12, vol=1.0){ if(!soundOn) return; try{ ensureAudio(); const bufferSize = audioCtx.sampleRate * duration; const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate); const data = buffer.getChannelData(0); for(let i=0;i<bufferSize;i++) data[i] = (Math.random()*2-1) * Math.exp(-i/bufferSize*6); const src = audioCtx.createBufferSource(); src.buffer = buffer; const g = audioCtx.createGain(); g.gain.value = vol; src.connect(g); g.connect(masterGain); src.start(); src.stop(audioCtx.currentTime + duration);
+  }catch(e){}
+}
+function playBlockSound(){ playBeep(900, 'sine', 0.06, 0.9); }
+function playHitSound(){ playNoise(0.15, 0.18); playBeep(220, 'triangle', 0.12, 0.6); }
+function playGameOverSound(){ playBeep(120, 'sawtooth', 0.6, 0.8); playNoise(0.4, 0.25); }
+
 function rand(min,max){ return Math.random()*(max-min)+min }
 
 function spawnEnemy(){
@@ -86,20 +129,38 @@ function update(dt){
     if(player.shield){
       const dx = p.x - player.x; const dy = p.y - player.y; const d = Math.hypot(dx,dy);
       const shieldRadius = player.r*2.2;
-      if(d <= shieldRadius + p.r){ projectiles.splice(i,1); score += 1; continue; }
+      if(d <= shieldRadius + p.r){
+        // block
+        spawnParticles(p.x, p.y, 'rgba(80,200,255,0.95)', 10);
+        playBlockSound();
+        projectiles.splice(i,1);
+        score += 1;
+        continue;
+      }
     }
     // collision with player (approximate triangle as circle)
     const dx2 = p.x - player.x; const dy2 = p.y - player.y; const d2 = Math.hypot(dx2,dy2);
-    if(d2 <= player.r + p.r){ projectiles.splice(i,1); player.hp -= 1; if(player.hp <= 0) gameOver(); continue; }
+    if(d2 <= player.r + p.r){
+      // hit player
+      spawnParticles(player.x + (dx2*0.5), player.y + (dy2*0.5), '#ff8b7a', 18);
+      playHitSound();
+      projectiles.splice(i,1);
+      player.hp -= 1;
+      if(player.hp <= 0) gameOver();
+      continue;
+    }
   }
 }
 
 let running = true;
-function gameOver(){ running = false; }
+function gameOver(){ running = false; playGameOverSound(); spawnParticles(player.x, player.y, '#ffffff', 60); }
 
 function draw(){
   // background
   ctx.fillStyle = '#0b0b0d'; ctx.fillRect(0,0,W,H);
+
+  // particles behind scene
+  drawParticles();
 
   // draw enemies
   enemies.forEach(e=>{
@@ -135,6 +196,7 @@ function loop(now){
   const dt = Math.min(0.05, (now - lastTime)/1000);
   lastTime = now;
   if(running) update(dt);
+  updateParticles(dt);
   draw();
   requestAnimationFrame(loop);
 }
