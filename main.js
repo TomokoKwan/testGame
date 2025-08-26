@@ -85,7 +85,9 @@ function spawnProjectile(from, vx, vy){
   projectiles.push({ x: from.x, y: from.y, r:6, vx, vy });
 }
 
-function update(dt){
+// Update only the player position and return how far the player moved this frame
+function updatePlayer(dt){
+  const prevX = player.x, prevY = player.y;
   // player movement
   let dx=0, dy=0;
   if(keys['arrowup']||keys['w']) dy -= 1;
@@ -101,6 +103,12 @@ function update(dt){
   // shield toggle (Space)
   if(keys[' ']){ player.shield = true; } else { player.shield = false; }
 
+  const moved = Math.hypot(player.x - prevX, player.y - prevY);
+  return moved;
+}
+
+// Update the world (enemies, projectiles, spawning) using a scaled dt
+function updateWorld(dt){
   // enemies
   spawnTimer += dt;
   if(spawnTimer >= spawnInterval){ spawnTimer = 0; spawnEnemy(); if(spawnInterval>0.7) spawnInterval *= 0.985; }
@@ -196,8 +204,17 @@ function draw(){
 function loop(now){
   const dt = Math.min(0.05, (now - lastTime)/1000);
   lastTime = now;
-  if(running) update(dt);
-  updateParticles(dt);
+  if(running){
+    // update player always; world only advances when player moves
+    const moved = updatePlayer(dt);
+    // map movement distance to world time; tweak multiplier for feel
+    const timeScale = 0.02; // seconds of world time per pixel moved
+    const worldDt = Math.min(0.05, moved * timeScale);
+    if(worldDt > 0){
+      updateWorld(worldDt);
+      updateParticles(worldDt);
+    }
+  }
   draw();
   requestAnimationFrame(loop);
 }
