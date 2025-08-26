@@ -10,7 +10,8 @@ const player = {
   x: W/2, y: H/2, r: 20,
   speed: 260, // px / s
   shield: false,
-  hp: 3
+  hp: 3,
+  shootCooldown: 0
 };
 
 let keys = {};
@@ -82,7 +83,12 @@ function spawnEnemy(){
 }
 
 function spawnProjectile(from, vx, vy){
-  projectiles.push({ x: from.x, y: from.y, r:6, vx, vy });
+  // default enemy projectile; friendly flag optional
+  const friendly = arguments.length >= 4 ? arguments[3] : false;
+  const color = friendly ? '#ffffff' : '#ffd54f';
+  const r = friendly ? 7 : 6;
+  // store projectiles with a color and size; no immediate prev pos required (tail computed at draw)
+  projectiles.push({ x: from.x, y: from.y, r, vx, vy, friendly, color });
 }
 
 // Update only the player position and return how far the player moved this frame
@@ -102,6 +108,9 @@ function updatePlayer(dt){
 
   // shield toggle (Space)
   if(keys[' ']){ player.shield = true; } else { player.shield = false; }
+
+  // shooting cooldown timer
+  if(player.shootCooldown > 0) player.shootCooldown = Math.max(0, player.shootCooldown - dt);
 
   const moved = Math.hypot(player.x - prevX, player.y - prevY);
   return moved;
@@ -128,12 +137,15 @@ function updateWorld(dt){
     }
   });
 
-  // projectiles
+  // projectiles (only enemy projectiles are handled here; friendly projectiles are updated every frame)
   for(let i=projectiles.length-1;i>=0;i--){
     const p = projectiles[i];
+    if(p.friendly) continue; // friendly handled by updateFriendlyProjectiles
     p.x += p.vx * dt; p.y += p.vy * dt;
     // remove offscreen
     if(p.x < -50 || p.x > W+50 || p.y < -50 || p.y > H+50){ projectiles.splice(i,1); continue; }
+
+    // enemy projectile behavior
     // collision with shield
     if(player.shield){
       const dx = p.x - player.x; const dy = p.y - player.y; const d = Math.hypot(dx,dy);
@@ -159,6 +171,32 @@ function updateWorld(dt){
       continue;
     }
   }
+  // advance friendly projectiles along with world time
+  updateFriendlyProjectiles(dt);
+}
+
+// Advance friendly projectiles every frame so player's shots travel while world time is paused
+function updateFriendlyProjectiles(dt){
+  for(let i=projectiles.length-1;i>=0;i--){
+    const p = projectiles[i];
+    if(!p.friendly) continue;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    // remove offscreen
+    if(p.x < -50 || p.x > W+50 || p.y < -50 || p.y > H+50){ projectiles.splice(i,1); continue; }
+    // check collision with enemies
+    for(let j=enemies.length-1;j>=0;j--){
+      const e = enemies[j];
+      const dx = p.x - e.x, dy = p.y - e.y;
+      if(Math.hypot(dx,dy) <= e.r + p.r){
+        spawnParticles(e.x, e.y, '#ff6b5a', 14);
+        playHitSound();
+        projectiles.splice(i,1);
+        enemies.splice(j,1);
+        score += 2;
+        break;
+      }
+    }
+  }
 }
 
 let running = true;
@@ -179,7 +217,15 @@ function draw(){
 
   // draw projectiles
   projectiles.forEach(p=>{
-    ctx.beginPath(); ctx.fillStyle = '#ffd54f'; ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+    const col = p.color || '#ffd54f';
+    // small motion-tail to visualize travel
+    const speed = Math.hypot(p.vx||0, p.vy||0) || 1;
+    const tailLen = Math.min(18, speed * 0.03);
+    ctx.beginPath(); ctx.strokeStyle = col; ctx.lineWidth = Math.max(1, p.r*0.25); ctx.globalAlpha = 0.9;
+    ctx.moveTo(p.x - (p.vx/speed)*tailLen, p.y - (p.vy/speed)*tailLen);
+    ctx.lineTo(p.x, p.y); ctx.stroke(); ctx.globalAlpha = 1;
+    // projectile body
+    ctx.beginPath(); ctx.fillStyle = col; ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
   });
 
   // draw shield if active
@@ -214,6 +260,7 @@ function loop(now){
       updateWorld(worldDt);
       updateParticles(worldDt);
     }
+    
   }
   draw();
   requestAnimationFrame(loop);
@@ -224,14 +271,50 @@ addEventListener('keydown', e => {
   if(e.key.toLowerCase()==='r') restart();
 });
 
-function restart(){ enemies = []; projectiles = []; player.x = W/2; player.y = H/2; player.hp = 3; score = 0; spawnInterval = 2.0; spawnTimer = 0; running = true; }
+function restart(){ enemies = []; projectiles = []; player.x = W/2; player.y = H/2; player.hp = 3; player.shootCooldown = 0; score = 0; spawnInterval = 2.0; spawnTimer = 0; running = true; }
 
 // mouse follow disabled — player movement controlled only by keyboard/touch
 addEventListener('mousemove', e => { /* intentionally disabled to prevent mouse control */ });
 
+// click to shoot (left mouse)
+addEventListener('mousedown', e => {
+  if(!running) return;
+  // only left button
+  if(e.button !== 0) return;
+  // simple firing rate: 0.28s
+  if(player.shootCooldown > 0) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left; const my = e.clientY - rect.top;
+  const dx = mx - player.x, dy = my - player.y; const dist = Math.hypot(dx,dy) || 1;
+  const speed = 520;
+  const vx = (dx/dist) * speed; const vy = (dy/dist) * speed;
+  spawnProjectile(player, vx, vy, true);
+  playBeep(1200, 'sine', 0.06, 0.9);
+  player.shootCooldown = 0.28;
+});
+
 // touch support: tap to toggle shield (ignored when not running)
 addEventListener('touchstart', e => { if(!running) return; player.shield = true; });
 addEventListener('touchend', e => { if(!running) return; player.shield = false; });
+
+// touch tap to shoot (if short tap)
+addEventListener('touchcancel', ()=>{});
+addEventListener('touchstart', e => {
+  // prevent duplicate handling; we'll handle shooting on touchend for taps
+});
+addEventListener('touchend', e => {
+  if(!running) return;
+  const t = e.changedTouches[0];
+  const rect = canvas.getBoundingClientRect();
+  const mx = t.clientX - rect.left; const my = t.clientY - rect.top;
+  const dx = mx - player.x, dy = my - player.y; const dist = Math.hypot(dx,dy) || 1;
+  if(player.shootCooldown > 0) return;
+  const speed = 520;
+  const vx = (dx/dist) * speed; const vy = (dy/dist) * speed;
+  spawnProjectile(player, vx, vy, true);
+  playBeep(1200, 'sine', 0.06, 0.9);
+  player.shootCooldown = 0.28;
+});
 
 // --- Main menu wiring (separate screen) ---
 const mainMenu = document.getElementById('mainMenu');
