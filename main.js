@@ -226,14 +226,8 @@ addEventListener('keydown', e => {
 
 function restart(){ enemies = []; projectiles = []; player.x = W/2; player.y = H/2; player.hp = 3; score = 0; spawnInterval = 2.0; spawnTimer = 0; running = true; }
 
-// simple mouse follow for fun (not required)
-addEventListener('mousemove', e => {
-  if(!running) return; // don't move player when game is paused or over
-  // small smoothing movement toward mouse
-  const mx = e.clientX, my = e.clientY;
-  player.x += (mx - player.x) * 0.03;
-  player.y += (my - player.y) * 0.03;
-});
+// mouse follow disabled — player movement controlled only by keyboard/touch
+addEventListener('mousemove', e => { /* intentionally disabled to prevent mouse control */ });
 
 // touch support: tap to toggle shield (ignored when not running)
 addEventListener('touchstart', e => { if(!running) return; player.shield = true; });
