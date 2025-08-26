@@ -15,3 +15,10 @@ canvas { display:block; width:100vw; height:100vh; }
 .menu-btn.secondary{ background:#6c757d }
 .menu-msg{ margin-top:10px; font-size:13px; color:#cdd }
 .menu.hidden{ display:none }
+
+/* Settings panel inside menu */
+.settings{ margin-top:12px; text-align:left; background:rgba(255,255,255,0.02); padding:10px; border-radius:8px }
+.setting-row{ display:flex; align-items:center; justify-content:space-between; margin:8px 0 }
+.setting-row label{ color:#dfe7f2 }
+.setting-actions{ display:flex; gap:8px; justify-content:flex-end; margin-top:8px }
+.hidden{ display:none }

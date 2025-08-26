@@ -24,8 +24,38 @@
         <button id="btnInstructions" class="menu-btn secondary">Instructions</button>
         <button id="btnFullscreen" class="menu-btn">Fullscreen</button>
         <button id="btnSound" class="menu-btn">Sound: On</button>
+        <button id="btnSettings" class="menu-btn secondary">Settings</button>
       </div>
       <div id="menuMsg" class="menu-msg"></div>
+      <!-- Settings panel (only visible from main menu) -->
+      <div id="settingsPanel" class="settings hidden">
+        <h3>Settings</h3>
+        <div class="setting-row">
+          <label>Sound</label>
+          <button id="settingsSoundToggle" class="menu-btn">Toggle</button>
+        </div>
+        <div class="setting-row">
+          <label>Volume</label>
+          <input id="settingsVolume" type="range" min="0" max="1" step="0.01" value="0.12">
+        </div>
+        <div class="setting-row">
+          <label>Particles</label>
+          <input id="settingsParticles" type="checkbox" checked>
+        </div>
+        <div class="setting-row">
+          <label>Difficulty</label>
+          <select id="settingsDifficulty">
+            <option value="easy">Easy</option>
+            <option value="normal" selected>Normal</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+        <div class="setting-actions">
+          <button id="settingsSave" class="menu-btn">Save</button>
+          <button id="settingsReset" class="menu-btn secondary">Reset</button>
+          <button id="settingsClose" class="menu-btn">Close</button>
+        </div>
+      </div>
     </div>
   </div>
 

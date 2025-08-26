@@ -27,6 +27,7 @@ let score = 0;
 // Particles
 let particles = [];
 function spawnParticles(x,y,color,count=12){
+  if(!particlesEnabled) return;
   for(let i=0;i<count;i++){
     const ang = Math.random()*Math.PI*2;
     const speed = Math.random()*260 + 60;
@@ -231,6 +232,29 @@ const menuMsg = document.getElementById('menuMsg');
 const ui = document.getElementById('ui');
 
 let soundOn = true;
+let particlesEnabled = true;
+
+// settings persistence
+const SETTINGS_KEY = 'shapes_shields_settings_v1';
+function loadSettings(){
+  try{
+    const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+    if(typeof s.soundOn === 'boolean') soundOn = s.soundOn;
+    if(typeof s.volume === 'number' && masterGain) masterGain.gain.value = s.volume;
+    if(typeof s.particlesEnabled === 'boolean') particlesEnabled = s.particlesEnabled;
+    if(typeof s.difficulty === 'string') applyDifficulty(s.difficulty);
+    // update UI labels later
+    return s;
+  }catch(e){ return {}; }
+}
+function saveSettings(obj){
+  try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(obj)); }catch(e){}
+}
+function applyDifficulty(level){
+  if(level === 'easy') spawnInterval = 2.6;
+  else if(level === 'normal') spawnInterval = 2.0;
+  else if(level === 'hard') spawnInterval = 1.2;
+}
 
 function showMainMenu(msg){
   if(msg) menuMsg.textContent = msg;
@@ -259,6 +283,46 @@ btnFullscreen && btnFullscreen.addEventListener('click', async ()=>{
   }catch(e){ /* ignore */ }
 });
 btnSound && btnSound.addEventListener('click', ()=>{ soundOn = !soundOn; btnSound.textContent = `Sound: ${soundOn? 'On':'Off'}`; });
+// Settings panel
+const btnSettings = document.getElementById('btnSettings');
+const settingsPanel = document.getElementById('settingsPanel');
+const settingsSoundToggle = document.getElementById('settingsSoundToggle');
+const settingsVolume = document.getElementById('settingsVolume');
+const settingsParticles = document.getElementById('settingsParticles');
+const settingsDifficulty = document.getElementById('settingsDifficulty');
+const settingsSave = document.getElementById('settingsSave');
+const settingsReset = document.getElementById('settingsReset');
+const settingsClose = document.getElementById('settingsClose');
+
+function openSettings(){
+  if(settingsPanel) settingsPanel.classList.remove('hidden');
+  // populate
+  settingsSoundToggle && (settingsSoundToggle.textContent = `Sound: ${soundOn? 'On':'Off'}`);
+  settingsVolume && (settingsVolume.value = masterGain? masterGain.gain.value : 0.12);
+  settingsParticles && (settingsParticles.checked = particlesEnabled);
+}
+
+function closeSettings(){ if(settingsPanel) settingsPanel.classList.add('hidden'); }
+
+btnSettings && btnSettings.addEventListener('click', ()=>{ openSettings(); });
+settingsSoundToggle && settingsSoundToggle.addEventListener('click', ()=>{ soundOn = !soundOn; settingsSoundToggle.textContent = `Sound: ${soundOn? 'On':'Off'}`; });
+settingsClose && settingsClose.addEventListener('click', ()=>{ closeSettings(); });
+settingsReset && settingsReset.addEventListener('click', ()=>{
+  soundOn = true; particlesEnabled = true; applyDifficulty('normal'); if(masterGain) masterGain.gain.value = 0.12; openSettings();
+});
+settingsSave && settingsSave.addEventListener('click', ()=>{
+  const s = { soundOn, volume: Number(settingsVolume.value), particlesEnabled: !!settingsParticles.checked, difficulty: settingsDifficulty.value };
+  if(masterGain) masterGain.gain.value = s.volume;
+  particlesEnabled = s.particlesEnabled;
+  applyDifficulty(s.difficulty);
+  saveSettings(s);
+  closeSettings();
+});
+
+// initialize settings from storage
+loadSettings();
+// reflect sound setting in menu button if present
+if(btnSound) btnSound.textContent = `Sound: ${soundOn? 'On':'Off'}`;
 
 // Show menu at load so it replaces the game screen until Start is pressed
 showMainMenu();
