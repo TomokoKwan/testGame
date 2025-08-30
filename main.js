@@ -11,7 +11,8 @@ const player = {
   speed: 260, // px / s
   shield: false,
   hp: 3,
-  shootCooldown: 0
+  shootCooldown: 0,
+  shootCooldownMax: 0.28 // max cooldown for shooting (seconds)
 };
 
 let keys = {};
@@ -53,6 +54,18 @@ function drawParticles(){
     ctx.beginPath(); ctx.fillStyle = p.color; ctx.globalAlpha = Math.max(0, p.life/1.2);
     ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
   }
+}
+
+// rounded rect helper used by cooldown HUD
+function roundRect(ctx, x, y, w, h, r){
+  const rad = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x + rad, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rad);
+  ctx.arcTo(x + w, y + h, x, y + h, rad);
+  ctx.arcTo(x, y + h, x, y, rad);
+  ctx.arcTo(x, y, x + w, y, rad);
+  ctx.closePath();
 }
 
 // Simple WebAudio helpers (oscillator + envelope)
@@ -109,10 +122,12 @@ function updatePlayer(dt){
   // shield toggle (Space)
   if(keys[' ']){ player.shield = true; } else { player.shield = false; }
 
-  // shooting cooldown timer
-  if(player.shootCooldown > 0) player.shootCooldown = Math.max(0, player.shootCooldown - dt);
-
+  // NOTE: cooldown now only advances when the player actually moves
   const moved = Math.hypot(player.x - prevX, player.y - prevY);
+  if(moved > 0 && player.shootCooldown > 0){
+    player.shootCooldown = Math.max(0, player.shootCooldown - dt);
+  }
+
   return moved;
 }
 
@@ -240,6 +255,81 @@ function draw(){
   // HUD
   const hud = document.getElementById('hud'); hud.textContent = `HP: ${player.hp} · Score: ${score} · Enemies: ${enemies.length}`;
 
+  // shoot cooldown indicator (bottom center) - bullet style with centered tail and offset circle
+  (function drawCooldown(){
+    const max = player.shootCooldownMax || 0.28;
+    const remaining = Math.max(0, player.shootCooldown);
+    const ratio = max > 0 ? Math.max(0, Math.min(1, 1 - remaining / max)) : 1;
+
+    const size = 46;
+    const cx = Math.round(W / 2);
+    const cy = Math.round(H - 38);
+    const radius = size / 2;
+
+    const innerRadius = 4;     // small white bullet (halved from 6 -> 3)
+    const ringWidth = 3;       // thin ring
+    const ringRadius = radius - ringWidth/2;
+
+    // ring background (thin)
+    ctx.beginPath();
+    ctx.lineWidth = ringWidth;
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.arc(cx, cy, ringRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // progress arc (clockwise from top)
+    const start = -Math.PI / 2;
+    const end = start + ratio * Math.PI * 2;
+    ctx.beginPath();
+    ctx.lineWidth = ringWidth;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = ratio >= 1 ? '#5cb85c' : '#ffd54f';
+    ctx.arc(cx, cy, ringRadius, start, end, false);
+    ctx.stroke();
+
+    // offset the bullet circle slightly up-right so the combined shape feels centered in the ring
+    const offsetDist = 4; // pixels to move the small circle toward up-right
+    const offsetAngle = -Math.PI/4; // up-right
+    const bx = cx + Math.cos(offsetAngle) * offsetDist;
+    const by = cy + Math.sin(offsetAngle) * offsetDist;
+
+    // bullet-like center (small white solid circle) drawn at offset position
+    ctx.beginPath();
+    ctx.fillStyle = '#fff';
+    ctx.globalAlpha = 1;
+    ctx.arc(bx, by, innerRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // bottom-left small line (removed up-right trailing tail)
+    (function drawBottomLeft(){
+      const color = '#fff';
+      const angleBL = 3 * Math.PI / 4; // 135° -> down-left
+      const bxh = Math.cos(angleBL);
+      const byh = Math.sin(angleBL);
+      const blStart = innerRadius;   // start at circle edge
+      const blLen = 6;               // shorter small line
+      const bsx = bx + bxh * blStart;
+      const bsy = by + byh * blStart;
+      const bex = bx + bxh * (blStart + blLen);
+      const bey = by + byh * (blStart + blLen);
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.moveTo(bsx, bsy);
+      ctx.lineTo(bex, bey);
+      ctx.stroke();
+    })();
+
+    // countdown number below the ring
+    ctx.fillStyle = '#fff';
+    ctx.font = '12px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const label = remaining > 0 ? remaining.toFixed(2) : '0.00';
+    ctx.fillText(label, cx, cy + ringRadius + 6);
+
+    ctx.globalAlpha = 1;
+  })();
+
   if(!running){
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0,0,W,H);
     ctx.fillStyle = '#fff'; ctx.textAlign='center'; ctx.font = '36px Segoe UI, Arial'; ctx.fillText('Game Over', W/2, H/2 - 20);
@@ -281,7 +371,7 @@ addEventListener('mousedown', e => {
   if(!running) return;
   // only left button
   if(e.button !== 0) return;
-  // simple firing rate: 0.28s
+  // simple firing rate
   if(player.shootCooldown > 0) return;
   const rect = canvas.getBoundingClientRect();
   const mx = e.clientX - rect.left; const my = e.clientY - rect.top;
@@ -290,7 +380,7 @@ addEventListener('mousedown', e => {
   const vx = (dx/dist) * speed; const vy = (dy/dist) * speed;
   spawnProjectile(player, vx, vy, true);
   playBeep(1200, 'sine', 0.06, 0.9);
-  player.shootCooldown = 0.28;
+  player.shootCooldown = player.shootCooldownMax;
 });
 
 // touch support: tap to toggle shield (ignored when not running)
@@ -313,7 +403,7 @@ addEventListener('touchend', e => {
   const vx = (dx/dist) * speed; const vy = (dy/dist) * speed;
   spawnProjectile(player, vx, vy, true);
   playBeep(1200, 'sine', 0.06, 0.9);
-  player.shootCooldown = 0.28;
+  player.shootCooldown = player.shootCooldownMax;
 });
 
 // --- Main menu wiring (separate screen) ---
