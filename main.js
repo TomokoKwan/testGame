@@ -84,17 +84,9 @@ function playGameOverSound(){ playBeep(120, 'sawtooth', 0.6, 0.8); playNoise(0.4
 
 function rand(min,max){ return Math.random()*(max-min)+min }
 
-function spawnEnemy(){
-  // spawn at random edge
-  const edge = Math.floor(Math.random()*4);
-  let x,y;
-  if(edge===0){ x = -30; y = rand(0,H); }
-  if(edge===1){ x = W+30; y = rand(0,H); }
-  if(edge===2){ x = rand(0,W); y = -30; }
-  if(edge===3){ x = rand(0,W); y = H+30; }
-  enemies.push({ x,y, r: rand(12,28), shootTimer: rand(0.3,1.5) });
-}
+// NOTE: spawnEnemy moved to enemies.js (spawnRandomEnemy / spawnEnemyType)
 
+// spawnProjectile remains in main.js
 function spawnProjectile(from, vx, vy){
   // default enemy projectile; friendly flag optional
   const friendly = arguments.length >= 4 ? arguments[3] : false;
@@ -135,22 +127,44 @@ function updatePlayer(dt){
 function updateWorld(dt){
   // enemies
   spawnTimer += dt;
-  if(spawnTimer >= spawnInterval){ spawnTimer = 0; spawnEnemy(); if(spawnInterval>0.7) spawnInterval *= 0.985; }
-
-  enemies.forEach((e, i) => {
-    // simple homing move
-    const ax = player.x - e.x; const ay = player.y - e.y; const d = Math.hypot(ax,ay)||1;
-    e.x += (ax/d) * (60 + 20*Math.random()) * dt;
-    e.y += (ay/d) * (60 + 20*Math.random()) * dt;
-    e.shootTimer -= dt;
-    if(e.shootTimer <= 0){
-      e.shootTimer = rand(0.6,1.6);
-      // shoot towards player
-      const vx = (player.x - e.x) / Math.hypot(player.x-e.x, player.y-e.y) * rand(160, 260);
-      const vy = (player.y - e.y) / Math.hypot(player.x-e.x, player.y-e.y) * rand(160, 260);
-      spawnProjectile(e, vx, vy);
+  if(spawnTimer >= spawnInterval){
+    spawnTimer = 0;
+    // now delegating spawn to enemies.js
+    if(typeof spawnRandomEnemy === 'function'){
+      spawnRandomEnemy();
+    } else {
+      // fallback to original simple spawn if enemies.js not present
+      const edge = Math.floor(Math.random()*4);
+      let x,y;
+      if(edge===0){ x = -30; y = rand(0,H); }
+      if(edge===1){ x = W+30; y = rand(0,H); }
+      if(edge===2){ x = rand(0,W); y = -30; }
+      if(edge===3){ x = rand(0,W); y = H+30; }
+      enemies.push({ x,y, r: rand(12,28), shootTimer: rand(0.3,1.5) });
     }
-  });
+    if(spawnInterval>0.7) spawnInterval *= 0.985;
+  }
+
+  // delegate enemy updates to enemies.js when available
+  if(typeof updateEnemies === 'function'){
+    updateEnemies(dt);
+  } else {
+    // fallback: previous inline enemy behavior (shooter-only)
+    enemies.forEach((e, i) => {
+      // simple homing move
+      const ax = player.x - e.x; const ay = player.y - e.y; const d = Math.hypot(ax,ay)||1;
+      e.x += (ax/d) * (60 + 20*Math.random()) * dt;
+      e.y += (ay/d) * (60 + 20*Math.random()) * dt;
+      e.shootTimer -= dt;
+      if(e.shootTimer <= 0){
+        e.shootTimer = rand(0.6,1.6);
+        // shoot towards player
+        const vx = (player.x - e.x) / Math.hypot(player.x-e.x, player.y-e.y) * rand(160, 260);
+        const vy = (player.y - e.y) / Math.hypot(player.x-e.x, player.y-e.y) * rand(160, 260);
+        spawnProjectile(e, vx, vy);
+      }
+    });
+  }
 
   // projectiles (only enemy projectiles are handled here; friendly projectiles are updated every frame)
   for(let i=projectiles.length-1;i>=0;i--){
@@ -224,11 +238,15 @@ function draw(){
   // particles behind scene
   drawParticles();
 
-  // draw enemies
-  enemies.forEach(e=>{
-    ctx.beginPath(); ctx.fillStyle = '#d9534f'; ctx.arc(e.x,e.y,e.r,0,Math.PI*2); ctx.fill();
-    ctx.strokeStyle = '#7b1f1a'; ctx.lineWidth = 2; ctx.stroke();
-  });
+  // draw enemies (delegate to enemies.js when available)
+  if(typeof drawEnemies === 'function'){
+    drawEnemies(ctx);
+  } else {
+    enemies.forEach(e=>{
+      ctx.beginPath(); ctx.fillStyle = '#d9534f'; ctx.arc(e.x,e.y,e.r,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#7b1f1a'; ctx.lineWidth = 2; ctx.stroke();
+    });
+  }
 
   // draw projectiles
   projectiles.forEach(p=>{
