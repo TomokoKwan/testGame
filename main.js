@@ -92,42 +92,13 @@ function updateWorld(dt){
   spawnTimer += dt;
   if(spawnTimer >= spawnInterval){
     spawnTimer = 0;
-    // now delegating spawn to enemies.js
-    if(typeof spawnRandomEnemy === 'function'){
-      spawnRandomEnemy();
-    } else {
-      // fallback to original simple spawn if enemies.js not present
-      const edge = Math.floor(Math.random()*4);
-      let x,y;
-      if(edge===0){ x = -30; y = rand(0,H); }
-      if(edge===1){ x = W+30; y = rand(0,H); }
-      if(edge===2){ x = rand(0,W); y = -30; }
-      if(edge===3){ x = rand(0,W); y = H+30; }
-      enemies.push({ x,y, r: rand(12,28), shootTimer: rand(0.3,1.5) });
-    }
-    if(spawnInterval>0.7) spawnInterval *= 0.985;
+    // spawn delegated to enemies.js
+    spawnRandomEnemy();
+    if(spawnInterval > 0.7) spawnInterval *= 0.985;
   }
 
-  // delegate enemy updates to enemies.js when available
-  if(typeof updateEnemies === 'function'){
-    updateEnemies(dt);
-  } else {
-    // fallback: previous inline enemy behavior (shooter-only)
-    enemies.forEach((e, i) => {
-      // simple homing move
-      const ax = player.x - e.x; const ay = player.y - e.y; const d = Math.hypot(ax,ay)||1;
-      e.x += (ax/d) * (60 + 20*Math.random()) * dt;
-      e.y += (ay/d) * (60 + 20*Math.random()) * dt;
-      e.shootTimer -= dt;
-      if(e.shootTimer <= 0){
-        e.shootTimer = rand(0.6,1.6);
-        // shoot towards player
-        const vx = (player.x - e.x) / Math.hypot(player.x-e.x, player.y-e.y) * rand(160, 260);
-        const vy = (player.y - e.y) / Math.hypot(player.x-e.x, player.y-e.y) * rand(160, 260);
-        spawnProjectile(e, vx, vy);
-      }
-    });
-  }
+  // delegate enemy updates to enemies.js
+  updateEnemies(dt);
 
   // projectiles (only enemy projectiles are handled here; friendly projectiles are updated every frame)
   for(let i=projectiles.length-1;i>=0;i--){
