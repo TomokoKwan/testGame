@@ -5,16 +5,6 @@ let W, H;
 function resize() { W = canvas.width = innerWidth; H = canvas.height = innerHeight; }
 addEventListener('resize', resize); resize();
 
-// Player (triangle) represented by position and radius for collisions
-const player = {
-  x: W/2, y: H/2, r: 20,
-  speed: 260, // px / s
-  shield: false,
-  hp: 3,
-  shootCooldown: 0,
-  shootCooldownMax: 0.28 // max cooldown for shooting (seconds)
-};
-
 let keys = {};
 addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if(e.code==='Space') e.preventDefault(); });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -94,33 +84,6 @@ function spawnProjectile(from, vx, vy){
   const r = friendly ? 7 : 6;
   // store projectiles with a color and size; no immediate prev pos required (tail computed at draw)
   projectiles.push({ x: from.x, y: from.y, r, vx, vy, friendly, color });
-}
-
-// Update only the player position and return how far the player moved this frame
-function updatePlayer(dt){
-  const prevX = player.x, prevY = player.y;
-  // player movement
-  let dx=0, dy=0;
-  if(keys['arrowup']||keys['w']) dy -= 1;
-  if(keys['arrowdown']||keys['s']) dy += 1;
-  if(keys['arrowleft']||keys['a']) dx -= 1;
-  if(keys['arrowright']||keys['d']) dx += 1;
-  const len = Math.hypot(dx,dy) || 1;
-  player.x += (dx/len) * player.speed * dt;
-  player.y += (dy/len) * player.speed * dt;
-  player.x = Math.max(0, Math.min(W, player.x));
-  player.y = Math.max(0, Math.min(H, player.y));
-
-  // shield toggle (Space)
-  if(keys[' ']){ player.shield = true; } else { player.shield = false; }
-
-  // NOTE: cooldown now only advances when the player actually moves
-  const moved = Math.hypot(player.x - prevX, player.y - prevY);
-  if(moved > 0 && player.shootCooldown > 0){
-    player.shootCooldown = Math.max(0, player.shootCooldown - dt);
-  }
-
-  return moved;
 }
 
 // Update the world (enemies, projectiles, spawning) using a scaled dt
