@@ -16,36 +16,6 @@ let lastTime = performance.now();
 let spawnTimer = 0; let spawnInterval = 2.0; // seconds
 let score = 0;
 
-// Particles
-let particles = [];
-function spawnParticles(x,y,color,count=12){
-  if(!particlesEnabled) return;
-  for(let i=0;i<count;i++){
-    const ang = Math.random()*Math.PI*2;
-    const speed = Math.random()*260 + 60;
-    particles.push({ x, y, vx: Math.cos(ang)*speed, vy: Math.sin(ang)*speed, r: Math.random()*3+1, life: Math.random()*0.7+0.4, color });
-    if(particles.length>800) particles.shift();
-  }
-}
-
-function updateParticles(dt){
-  for(let i=particles.length-1;i>=0;i--){
-    const p = particles[i];
-    p.x += p.vx * dt; p.y += p.vy * dt;
-    p.vy += 300 * dt; // gravity
-    p.life -= dt;
-    p.r *= 0.96;
-    if(p.life <= 0 || p.r < 0.2) particles.splice(i,1);
-  }
-}
-
-function drawParticles(){
-  for(const p of particles){
-    ctx.beginPath(); ctx.fillStyle = p.color; ctx.globalAlpha = Math.max(0, p.life/1.2);
-    ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
-  }
-}
-
 // rounded rect helper used by cooldown HUD
 function roundRect(ctx, x, y, w, h, r){
   const rad = Math.min(r, w/2, h/2);
@@ -73,8 +43,6 @@ function playHitSound(){ playNoise(0.15, 0.18); playBeep(220, 'triangle', 0.12, 
 function playGameOverSound(){ playBeep(120, 'sawtooth', 0.6, 0.8); playNoise(0.4, 0.25); }
 
 function rand(min,max){ return Math.random()*(max-min)+min }
-
-// NOTE: spawnEnemy moved to enemies.js (spawnRandomEnemy / spawnEnemyType)
 
 // spawnProjectile remains in main.js
 function spawnProjectile(from, vx, vy){
