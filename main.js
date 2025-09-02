@@ -424,107 +424,53 @@ addEventListener('touchend', e => {
   player.shootCooldown = player.shootCooldownMax;
 });
 
-// --- Main menu wiring (separate screen) ---
-const mainMenu = document.getElementById('mainMenu');
-const btnStart = document.getElementById('btnStart');
-const btnInstructions = document.getElementById('btnInstructions');
-const btnFullscreen = document.getElementById('btnFullscreen');
-const btnSound = document.getElementById('btnSound');
-const menuMsg = document.getElementById('menuMsg');
-const ui = document.getElementById('ui');
+// --- Main menu wiring (deferred until DOM is ready) ---
+document.addEventListener('DOMContentLoaded', () => {
+  const mainMenu = document.getElementById('mainMenu');
+  const btnStart = document.getElementById('btnStart');
+  const btnInstructions = document.getElementById('btnInstructions');
+  const btnFullscreen = document.getElementById('btnFullscreen');
+  const btnSound = document.getElementById('btnSound');
+  const menuMsg = document.getElementById('menuMsg');
+  const ui = document.getElementById('ui');
 
-let soundOn = true;
-let particlesEnabled = true;
+  function showMainMenu(msg){
+    if(msg && menuMsg) menuMsg.textContent = msg;
+    if(mainMenu) mainMenu.classList.remove('hidden');
+    if(canvas) canvas.style.display = 'none';
+    if(ui) ui.style.display = 'none';
+    running = false;
+  }
 
-// settings persistence
-const SETTINGS_KEY = 'shapes_shields_settings_v1';
-function loadSettings(){
-  try{
-    const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
-    if(typeof s.soundOn === 'boolean') soundOn = s.soundOn;
-    if(typeof s.volume === 'number' && masterGain) masterGain.gain.value = s.volume;
-    if(typeof s.particlesEnabled === 'boolean') particlesEnabled = s.particlesEnabled;
-    if(typeof s.difficulty === 'string') applyDifficulty(s.difficulty);
-    // update UI labels later
-    return s;
-  }catch(e){ return {}; }
-}
-function saveSettings(obj){
-  try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(obj)); }catch(e){}
-}
-function applyDifficulty(level){
-  if(level === 'easy') spawnInterval = 2.6;
-  else if(level === 'normal') spawnInterval = 2.0;
-  else if(level === 'hard') spawnInterval = 1.2;
-}
+  function hideMainMenu(){
+    if(mainMenu) mainMenu.classList.add('hidden');
+    if(menuMsg) menuMsg.textContent = '';
+    if(canvas) canvas.style.display = '';
+    if(ui) ui.style.display = '';
+    running = true;
+    lastTime = performance.now();
+    requestAnimationFrame(loop);
+  }
 
-function showMainMenu(msg){
-  if(msg) menuMsg.textContent = msg;
-  if(mainMenu) mainMenu.classList.remove('hidden');
-  if(canvas) canvas.style.display = 'none';
-  if(ui) ui.style.display = 'none';
-  running = false;
-}
+  // wire buttons
+  if (btnStart) btnStart.addEventListener('click', () => { hideMainMenu(); restart(); });
+  if (btnInstructions) btnInstructions.addEventListener('click', () => { showMainMenu('Move with WASD or arrows. Hold Space to shield. Restart with R.'); });
+  if (btnFullscreen) btnFullscreen.addEventListener('click', async () => {
+    try {
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+      else await document.exitFullscreen();
+    } catch (e) { /* ignore */ }
+  });
+  if (btnSound) btnSound.addEventListener('click', () => {
+    // settings.js also manages sound state — toggle local label for immediate feedback
+    if (typeof soundOn === 'boolean') soundOn = !soundOn;
+    btnSound.textContent = `Sound: ${typeof soundOn !== 'undefined' && soundOn ? 'On' : 'Off'}`;
+  });
 
-function hideMainMenu(){
-  if(mainMenu) mainMenu.classList.add('hidden');
-  if(menuMsg) menuMsg.textContent = '';
-  if(canvas) canvas.style.display = '';
-  if(ui) ui.style.display = '';
-  running = true;
-  lastTime = performance.now();
-  requestAnimationFrame(loop);
-}
+  // load settings (settings.js is loaded from HTML)
+  if (typeof loadSettings === 'function') loadSettings();
+  if (btnSound) btnSound.textContent = `Sound: ${typeof soundOn !== 'undefined' && soundOn ? 'On' : 'Off'}`;
 
-btnStart && btnStart.addEventListener('click', ()=>{ hideMainMenu(); restart(); });
-btnInstructions && btnInstructions.addEventListener('click', ()=>{ showMainMenu('Move with WASD or arrows. Hold Space to shield. Restart with R.'); });
-btnFullscreen && btnFullscreen.addEventListener('click', async ()=>{
-  try{
-    if(!document.fullscreenElement) await document.documentElement.requestFullscreen();
-    else await document.exitFullscreen();
-  }catch(e){ /* ignore */ }
+  // ensure menu state on DOM ready
+  showMainMenu();
 });
-btnSound && btnSound.addEventListener('click', ()=>{ soundOn = !soundOn; btnSound.textContent = `Sound: ${soundOn? 'On':'Off'}`; });
-// Settings panel
-const btnSettings = document.getElementById('btnSettings');
-const settingsPanel = document.getElementById('settingsPanel');
-const settingsSoundToggle = document.getElementById('settingsSoundToggle');
-const settingsVolume = document.getElementById('settingsVolume');
-const settingsParticles = document.getElementById('settingsParticles');
-const settingsDifficulty = document.getElementById('settingsDifficulty');
-const settingsSave = document.getElementById('settingsSave');
-const settingsReset = document.getElementById('settingsReset');
-const settingsClose = document.getElementById('settingsClose');
-
-function openSettings(){
-  if(settingsPanel) settingsPanel.classList.remove('hidden');
-  // populate
-  settingsSoundToggle && (settingsSoundToggle.textContent = `Sound: ${soundOn? 'On':'Off'}`);
-  settingsVolume && (settingsVolume.value = masterGain? masterGain.gain.value : 0.12);
-  settingsParticles && (settingsParticles.checked = particlesEnabled);
-}
-
-function closeSettings(){ if(settingsPanel) settingsPanel.classList.add('hidden'); }
-
-btnSettings && btnSettings.addEventListener('click', ()=>{ openSettings(); });
-settingsSoundToggle && settingsSoundToggle.addEventListener('click', ()=>{ soundOn = !soundOn; settingsSoundToggle.textContent = `Sound: ${soundOn? 'On':'Off'}`; });
-settingsClose && settingsClose.addEventListener('click', ()=>{ closeSettings(); });
-settingsReset && settingsReset.addEventListener('click', ()=>{
-  soundOn = true; particlesEnabled = true; applyDifficulty('normal'); if(masterGain) masterGain.gain.value = 0.12; openSettings();
-});
-settingsSave && settingsSave.addEventListener('click', ()=>{
-  const s = { soundOn, volume: Number(settingsVolume.value), particlesEnabled: !!settingsParticles.checked, difficulty: settingsDifficulty.value };
-  if(masterGain) masterGain.gain.value = s.volume;
-  particlesEnabled = s.particlesEnabled;
-  applyDifficulty(s.difficulty);
-  saveSettings(s);
-  closeSettings();
-});
-
-// initialize settings from storage
-loadSettings();
-// reflect sound setting in menu button if present
-if(btnSound) btnSound.textContent = `Sound: ${soundOn? 'On':'Off'}`;
-
-// Show menu at load so it replaces the game screen until Start is pressed
-showMainMenu();
